@@ -1,4 +1,8 @@
+import audioop
 import json
+import math
+from collections import deque
+
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 # modules for TTS
 from ibm_watson import TextToSpeechV1, SpeechToTextV1
@@ -21,7 +25,10 @@ buffer = 1024
 rate = 22050
 width = 2
 channels = 1
-record_time = 3
+
+volume_threshold = 2500
+silence_seconds = 3
+prev_seconds = 0.5
 
 
 def speak(text):
@@ -66,30 +73,51 @@ def listen():
                     output=True,
                     )
 
-    print("Listenning...")
+    print("Listening...")
 
-    received = b'RIFF\xff\xff\xff\xffWAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00"V\x00\x00D\xac\x00\x00\x02\x00\x10\x00LIST\x1a\x00\x00\x00INFOISFT\x0e\x00\x00\x00Lavf58.29.100\x00data'
+    received = b''
+    voice = b''
+    rel = int(rate / buffer)
+    silence = deque(maxlen=silence_seconds * rel)
+    prev_audio = b''[:int(rel / 2)]
+    started = False
+    n = 1
 
-    for i in range(0, int(rate / buffer * record_time)):
-        received += stream.read(buffer)
+    while n > 0:
+        current_data = stream.read(buffer)
+        silence.append(math.sqrt(abs(audioop.avg(current_data, 4))))
+        if sum([x > volume_threshold for x in silence]) > 0:
+            if not started:
+                print("Recording...")
+                started = True
+            voice += current_data
+        elif started is True:
+            received = prev_audio + voice
+            started = False
+            silence = deque(maxlen=silence_seconds * rel)
+            prev_audio = b''[:int(rel / 2)]
+            voice = b''
+            n -= 1
+        else:
+            prev_audio += current_data
 
     print("Processing...")
 
-    received_data = BytesIO(received)
+    final = b'RIFF\xff\xff\xff\xffWAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00"V\x00\x00D\xac\x00\x00\x02\x00\x10\x00LIST\x1a\x00\x00\x00INFOISFT\x0e\x00\x00\x00Lavf58.29.100\x00data' + received
+
+    received_data = BytesIO(final)
 
     class MyRecognizeCallback(RecognizeCallback):
         def __init__(self):
             RecognizeCallback.__init__(self)
-            self.result = 'Couldn\'t hear what you said. Please try again later'
+            self.result = ''
+            self.on_error('Couldn\'t hear what you said. Please try again later')
 
         def on_data(self, data):
             self.result = data['results'][0]['alternatives'][0]['transcript']
 
         def on_error(self, error):
             self.result = 'Error received: {}'.format(error)
-
-        def on_inactivity_timeout(self, error):
-            self.result = 'Inactivity timeout: {}'.format(error)
 
     my_recognize_callback = MyRecognizeCallback()
 
