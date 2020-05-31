@@ -1,34 +1,35 @@
-import audioop
-import json
-import math
+"""
+My Text to Speech
+"""
+from audioop import avg
+from json import load
+from math import sqrt
 from collections import deque
+from io import BytesIO
 
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
-# modules for TTS
 from ibm_watson import TextToSpeechV1, SpeechToTextV1
-from pyaudio import PyAudio
-# modules for STT
 from ibm_watson.websocket import RecognizeCallback, AudioSource
-from io import BytesIO
+from pyaudio import PyAudio, paInt16
 
 # credentials
 with open('credentials.txt') as c:
-    credentials = json.load(c)
-TTSauthenticator = IAMAuthenticator(credentials['TTSapi'])
-text_to_speech = TextToSpeechV1(authenticator=TTSauthenticator)
+    credentials = load(c)
+TTS_authenticator = IAMAuthenticator(credentials['TTSapi'])
+text_to_speech = TextToSpeechV1(authenticator=TTS_authenticator)
 text_to_speech.set_service_url(credentials['TTSurl'])
-STTauthenticator = IAMAuthenticator(credentials['STTapi'])
-speech_to_text = SpeechToTextV1(authenticator=STTauthenticator)
+STT_authenticator = IAMAuthenticator(credentials['STTapi'])
+speech_to_text = SpeechToTextV1(authenticator=STT_authenticator)
 speech_to_text.set_service_url(credentials['STTurl'])
 
-buffer = 1024
-rate = 22050
-width = 2
-channels = 1
-
-volume_threshold = 2500
-silence_seconds = 3
-prev_seconds = 0.5
+# constants
+BUFFER = 1024
+RATE = 22050
+FORMAT = paInt16
+CHANNELS = 1
+THRESHOLD = 2500
+SILENCE = 3
+PREV = 0.5
 
 
 def speak(text):
@@ -37,12 +38,12 @@ def speak(text):
     :param text:
     :return:
     """
-    p = PyAudio()
+    write_audio = PyAudio()
 
-    stream = p.open(format=p.get_format_from_width(width),
-                    channels=channels,
-                    rate=rate,
-                    output=True)
+    stream = write_audio.open(format=FORMAT,
+                              channels=CHANNELS,
+                              rate=RATE,
+                              output=True)
 
     data = text_to_speech.synthesize(
         text,
@@ -51,12 +52,12 @@ def speak(text):
     ).get_result().content.split(b'data', 1)[1]
 
     while data != b'':
-        stream.write(data[:buffer + 1])
-        data = data[buffer:]
+        stream.write(data[:BUFFER])
+        data = data[BUFFER:]
 
     stream.stop_stream()
     stream.close()
-    p.terminate()
+    write_audio.terminate()
 
 
 def listen():
@@ -64,29 +65,28 @@ def listen():
     Speech To Text core
     :return:
     """
-    p = PyAudio()
+    read_audio = PyAudio()
 
-    stream = p.open(format=p.get_format_from_width(width),
-                    channels=channels,
-                    rate=rate,
-                    input=True,
-                    output=True,
-                    )
+    stream = read_audio.open(format=FORMAT,
+                             channels=CHANNELS,
+                             rate=RATE,
+                             input=True,
+                             )
 
     print("Listening...")
 
     received = b''
     voice = b''
-    rel = int(rate / buffer)
-    silence = deque(maxlen=silence_seconds * rel)
+    rel = int(RATE / BUFFER)
+    silence = deque(maxlen=SILENCE * rel)
     prev_audio = b''[:int(rel / 2)]
     started = False
-    n = 1
+    n_of_phrases = 1
 
-    while n > 0:
-        current_data = stream.read(buffer)
-        silence.append(math.sqrt(abs(audioop.avg(current_data, 4))))
-        if sum([x > volume_threshold for x in silence]) > 0:
+    while n_of_phrases > 0:
+        current_data = stream.read(BUFFER)
+        silence.append(sqrt(abs(avg(current_data, 4))))
+        if sum([x > THRESHOLD for x in silence]) > 0:
             if not started:
                 print("Recording...")
                 started = True
@@ -94,29 +94,42 @@ def listen():
         elif started is True:
             received = prev_audio + voice
             started = False
-            silence = deque(maxlen=silence_seconds * rel)
+            silence = deque(maxlen=SILENCE * rel)
             prev_audio = b''[:int(rel / 2)]
             voice = b''
-            n -= 1
+            n_of_phrases -= 1
         else:
             prev_audio += current_data
 
     print("Processing...")
 
-    final = b'RIFF\xff\xff\xff\xffWAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00"V\x00\x00D\xac\x00\x00\x02\x00\x10\x00LIST\x1a\x00\x00\x00INFOISFT\x0e\x00\x00\x00Lavf58.29.100\x00data' + received
+    final = b'RIFF\xff\xff\xff\xffWAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00"V' \
+            b'\x00\x00D\xac\x00\x00\x02\x00\x10\x00LIST\x1a\x00\x00\x00INFOISFT' \
+            b'\x0e\x00\x00\x00Lavf58.29.100\x00data' + received
 
     received_data = BytesIO(final)
 
     class MyRecognizeCallback(RecognizeCallback):
+        """
+        Callback class from Watson
+        """
         def __init__(self):
             RecognizeCallback.__init__(self)
             self.result = ''
             self.on_error('Couldn\'t hear what you said. Please try again later')
 
         def on_data(self, data):
+            """
+            If the voice is recognised
+            :param data:
+            """
             self.result = data['results'][0]['alternatives'][0]['transcript']
 
         def on_error(self, error):
+            """
+            If error occurs or the voice is not recognised
+            :param error:
+            """
             self.result = 'Error received: {}'.format(error)
 
     my_recognize_callback = MyRecognizeCallback()
@@ -132,6 +145,9 @@ def listen():
     received_data.close()
     stream.stop_stream()
     stream.close()
-    p.terminate()
+    read_audio.terminate()
 
     return my_recognize_callback.result
+
+
+speak(listen())
