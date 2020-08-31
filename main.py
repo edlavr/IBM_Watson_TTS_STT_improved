@@ -15,26 +15,26 @@ from pyaudio import PyAudio, paInt16
 # credentials
 with open('credentials.txt') as c:
     credentials = load(c)
-TTS_authenticator = IAMAuthenticator(credentials['TTSapi'])
+TTS_authenticator = IAMAuthenticator(credentials['TTS_api'])
 text_to_speech = TextToSpeechV1(authenticator=TTS_authenticator)
-text_to_speech.set_service_url(credentials['TTSurl'])
-STT_authenticator = IAMAuthenticator(credentials['STTapi'])
+text_to_speech.set_service_url(credentials['TTS_url'])
+STT_authenticator = IAMAuthenticator(credentials['STT_api'])
 speech_to_text = SpeechToTextV1(authenticator=STT_authenticator)
-speech_to_text.set_service_url(credentials['STTurl'])
+speech_to_text.set_service_url(credentials['STT_url'])
 
 # constants
 BUFFER = 1024
 RATE = 22050
 FORMAT = paInt16
 CHANNELS = 1
-THRESHOLD = 2500
+THRESHOLD = 2000  # voice loudness
 SILENCE = 3
 PREV = 0.5
 
 
-def speak(text):
+def tts(text):
     """
-    Text To Speech core. Using Watson API to get binary data and convert them into .wav
+    Text To Speech core. Using Watson API to get binary data and convert it into text
     :param text:
     :return:
     """
@@ -59,8 +59,10 @@ def speak(text):
     stream.close()
     write_audio.terminate()
 
+    return 'WARVIS said:\n"{}"'.format(text.strip())
 
-def listen():
+
+def stt():
     """
     Speech To Text core
     :return:
@@ -92,7 +94,7 @@ def listen():
                 started = True
             voice += current_data
         elif started is True:
-            received = prev_audio + voice
+            received = voice
             started = False
             silence = deque(maxlen=SILENCE * rel)
             prev_audio = b''[:int(rel / 2)]
@@ -147,7 +149,8 @@ def listen():
     stream.close()
     read_audio.terminate()
 
+    print('WARVIS recognised:\n"{}"'.format(my_recognize_callback.result.strip()))
     return my_recognize_callback.result
 
 
-speak(listen())
+print(tts(stt()))
