@@ -14,5 +14,5 @@
 ## Instructions
 
 * Go to IBM Cloud website, create credentials for TTS and STT (it's free!)
-* Insert them into credentials.txt
+* Insert them into main.py
 
