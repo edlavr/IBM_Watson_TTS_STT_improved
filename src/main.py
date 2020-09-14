@@ -1,5 +1,5 @@
 """
-My Text to Speech
+Speech to Text and Text To Speech
 """
 from audioop import avg
 from math import sqrt
@@ -13,10 +13,10 @@ from pyaudio import PyAudio, paInt16
 
 # credentials
 credentials = {
-    "TTS_api": "",
-    "TTS_url": "",
-    "STT_api": "",
-    "STT_url": ""
+    "TTS_api": "MloUdoG_OWu_Z01bV_KTRYR_-jKaZTI2Evjpcb1JVNaB",
+    "TTS_url": "https://api.eu-gb.text-to-speech.watson.cloud.ibm.com/instances/4d93a4e1-445e-41ad-bd25-28e6cccc5025",
+    "STT_api": "C49Cww5T7vuFsiCAe0AGXofz9bRBnwHSjS8cTL-CMrqm",
+    "STT_url": "https://api.eu-gb.speech-to-text.watson.cloud.ibm.com/instances/12d6c2bc-9fbb-4961-a460-2e8770e9f224"
 }
 
 TTS_authenticator = IAMAuthenticator(credentials['TTS_api'])
