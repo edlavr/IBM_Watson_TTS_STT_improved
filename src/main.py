@@ -87,11 +87,11 @@ def stt():
     silence = deque(maxlen=SILENCE * rel)
     prev_audio = b''[:int(rel / 2)]
     started = False
-    n_of_phrases = 1
+    n = 1 # depricated, but still might work! Change value for n of pauses you will make
 
-    while n_of_phrases > 0:
+    while n > 0:
         current_data = stream.read(BUFFER)
-        # print(current_data)
+        # print(current_data) # use for debug!
         silence.append(sqrt(abs(avg(current_data, 4))))
         if sum([x > THRESHOLD for x in silence]) > 0:
             if not started:
@@ -104,7 +104,7 @@ def stt():
             silence = deque(maxlen=SILENCE * rel)
             prev_audio = b''[:int(rel / 2)]
             voice = b''
-            n_of_phrases -= 1
+            n -= 1
         else:
             prev_audio += current_data
 
