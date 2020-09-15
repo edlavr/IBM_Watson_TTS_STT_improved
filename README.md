@@ -1,6 +1,6 @@
-# WARVIS
+# IBM Watson TTS and STT using computer mic and speakers (no audio files)
 
-### Currently, IBM Watson API allows you to work with audio files on your computer to implement Speech To Text.
+### Currently, IBM Watson API only allows you to work with audio files on your computer to implement Speech To Text.
 ### WARVIS works directly with your microphone and provides the functionality of IBM Watson TTS without having to store audio files of your voice recordings.
 #### On top of that, WARVIS detects loudness levels when recording and waits patiently until you speak.
 
